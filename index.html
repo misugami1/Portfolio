@@ -45,6 +45,25 @@
 
   /* starfield */
   #stars{position:fixed; inset:0; z-index:0; pointer-events:none;}
+  /* floating aether particles */
+  #particles{position:fixed; inset:0; z-index:60; pointer-events:none;}
+
+  /* reveal-on-scroll */
+  .reveal{opacity:0; transform:translateY(22px); transition:opacity .7s ease, transform .7s ease;}
+  .reveal.in-view{opacity:1; transform:translateY(0);}
+
+  /* sound / music toggle */
+  #audio-toggle{
+    position:fixed; right:18px; bottom:18px; z-index:150;
+    width:44px; height:44px;
+    background:var(--bg-panel-2); border:2px solid var(--border-line);
+    color:var(--cyan); font-family:var(--font-head); font-size:14px;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer;
+    box-shadow:3px 3px 0 rgba(0,0,0,0.8);
+  }
+  #audio-toggle:hover{border-color:var(--cyan);}
+  #audio-toggle.playing{color:var(--green); border-color:var(--green);}
 
   /* scanline overlay */
   body::after{
@@ -288,6 +307,10 @@
 <body>
 
 <canvas id="stars"></canvas>
+<canvas id="particles"></canvas>
+
+<audio id="bgm" loop preload="none" src="bgm.mp3"></audio>
+<button id="audio-toggle" type="button" aria-label="Toggle music">♪</button>
 
 <header class="nav">
   <div class="navbar">
@@ -327,11 +350,11 @@
           </div>
           <div class="statbar-row">
             <div class="labels"><span>Hardware &amp; IoT</span><span>70</span></div>
-            <div class="statbar"><i data-fill="78%" style="--fill:var(--green)"></i></div>
+            <div class="statbar"><i data-fill="70%" style="--fill:var(--green)"></i></div>
           </div>
           <div class="statbar-row">
             <div class="labels"><span>Systems &amp; Data</span><span>75</span></div>
-            <div class="statbar"><i data-fill="77%" style="--fill:var(--purple)"></i></div>
+            <div class="statbar"><i data-fill="75%" style="--fill:var(--purple)"></i></div>
           </div>
           <div class="statbar-row">
             <div class="labels"><span>Troubleshooting</span><span>88</span></div>
@@ -662,6 +685,134 @@ const TROPHY = [
 ".KKKKKKKKKK.",
 ];
 drawSprite('trophy', TROPHY, TROPHY_PALETTE);
+
+/* ---------------- aether particle system ---------------- */
+(function(){
+  const c = document.getElementById('particles');
+  const ctx = c.getContext('2d');
+  const colors = ['87,230,255', '185,139,255', '255,207,92'];
+  const burstColors = ['87,230,255', '185,139,255', '255,207,92', '255,93,122', '109,255,164'];
+  let particles = [];
+  let bursts = [];
+  function resize(){
+    c.width = window.innerWidth;
+    c.height = window.innerHeight;
+  }
+  function spawn(){
+    const count = window.innerWidth < 700 ? 26 : 46;
+    particles = [];
+    for(let i=0;i<count;i++){
+      particles.push({
+        x: Math.random()*c.width,
+        y: Math.random()*c.height,
+        r: 1 + Math.random()*2,
+        speed: 0.15 + Math.random()*0.35,
+        drift: (Math.random()-0.5)*0.4,
+        color: colors[Math.floor(Math.random()*colors.length)],
+        alpha: 0.2 + Math.random()*0.5
+      });
+    }
+  }
+  function spawnBurst(x, y){
+    const count = 12 + Math.floor(Math.random()*6);
+    for(let i=0;i<count;i++){
+      const angle = Math.random()*Math.PI*2;
+      const speed = 1.2 + Math.random()*2.6;
+      bursts.push({
+        x, y,
+        vx: Math.cos(angle)*speed,
+        vy: Math.sin(angle)*speed,
+        size: Math.random() < 0.3 ? 4 : Math.random() < 0.6 ? 3 : 2,
+        color: burstColors[Math.floor(Math.random()*burstColors.length)],
+        life: 1
+      });
+    }
+  }
+  function draw(){
+    ctx.clearRect(0,0,c.width,c.height);
+    for(const p of particles){
+      ctx.fillStyle = `rgba(${p.color},${p.alpha})`;
+      ctx.fillRect(p.x, p.y, p.r, p.r);
+      p.y -= p.speed;
+      p.x += p.drift;
+      if(p.y < -6){ p.y = c.height + 6; p.x = Math.random()*c.width; }
+      if(p.x < -6) p.x = c.width + 6;
+      if(p.x > c.width + 6) p.x = -6;
+    }
+    for(let i = bursts.length - 1; i >= 0; i--){
+      const b = bursts[i];
+      ctx.fillStyle = `rgba(${b.color},${b.life})`;
+      ctx.fillRect(Math.round(b.x), Math.round(b.y), b.size, b.size);
+      b.x += b.vx;
+      b.y += b.vy;
+      b.vy += 0.08;      /* gentle gravity */
+      b.vx *= 0.97;
+      b.life -= 0.025;
+      if(b.life <= 0) bursts.splice(i, 1);
+    }
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize', () => { resize(); spawn(); });
+  window.addEventListener('click', (e) => spawnBurst(e.clientX, e.clientY));
+  resize(); spawn();
+  requestAnimationFrame(draw);
+})();
+
+/* ---------------- click sound effect (synthesized, no file needed) ---------------- */
+let audioCtx;
+function playBlip(){
+  try{
+    audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(720, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(340, audioCtx.currentTime + 0.09);
+    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.11);
+    osc.connect(gain).connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.12);
+  }catch(e){ /* Web Audio unavailable — fail silently */ }
+}
+document.querySelectorAll('a, button, .item, .quest').forEach(el => {
+  el.addEventListener('click', playBlip);
+});
+
+/* ---------------- background music toggle ---------------- */
+(function(){
+  const bgm = document.getElementById('bgm');
+  const toggle = document.getElementById('audio-toggle');
+  bgm.volume = 0.35;
+  toggle.addEventListener('click', () => {
+    if(bgm.paused){
+      bgm.play().then(() => {
+        toggle.classList.add('playing');
+        toggle.textContent = '♫';
+      }).catch(() => {
+        toggle.textContent = '✕';
+        toggle.setAttribute('title', 'Add a bgm.mp3 file next to index.html to enable music');
+      });
+    } else {
+      bgm.pause();
+      toggle.classList.remove('playing');
+      toggle.textContent = '♪';
+    }
+  });
+})();
+
+/* ---------------- reveal-on-scroll ---------------- */
+document.querySelectorAll('.panel, .quest, .item, .branch, .achievement').forEach(el => el.classList.add('reveal'));
+const revealIO = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting){
+      e.target.classList.add('in-view');
+      revealIO.unobserve(e.target);
+    }
+  });
+}, {threshold:0.15});
+document.querySelectorAll('.reveal').forEach(el => revealIO.observe(el));
 
 /* ---------------- stat bar fill on scroll ---------------- */
 const bars = document.querySelectorAll('.statbar i');
