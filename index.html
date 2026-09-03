@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>JP.ATIENZA // Player Status</title>
+<meta name="description" content="John Paul B. Atienza — Computer Engineer portfolio, styled as a fantasy MMO status window.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#060714;
+    --bg-panel:#0e1330;
+    --bg-panel-2:#141b42;
+    --border-line: rgba(120,200,255,0.35);
+    --cyan:#57e6ff;
+    --cyan-dim:#2f8fae;
+    --gold:#ffcf5c;
+    --magenta:#ff5d7a;
+    --green:#6dffa4;
+    --purple:#b98bff;
+    --text-main:#e7ecff;
+    --text-dim:#8b93c2;
+    --font-head:'Press Start 2P', monospace;
+    --font-body:'VT323', monospace;
+  }
+
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse at 20% -10%, #1a2358 0%, transparent 55%),
+      radial-gradient(ellipse at 90% 10%, #2a1a4a 0%, transparent 45%),
+      var(--bg-deep);
+    color:var(--text-main);
+    font-family:var(--font-body);
+    font-size:20px;
+    line-height:1.5;
+    overflow-x:hidden;
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+
+  /* starfield */
+  #stars{position:fixed; inset:0; z-index:0; pointer-events:none;}
+
+  /* scanline overlay */
+  body::after{
+    content:"";
+    position:fixed; inset:0;
+    background:repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.025) 0px,
+      rgba(255,255,255,0.025) 1px,
+      transparent 2px,
+      transparent 3px
+    );
+    pointer-events:none;
+    z-index:200;
+    mix-blend-mode:overlay;
+  }
+
+  h1,h2,h3,.pixel-font{
+    font-family:var(--font-head);
+    line-height:1.6;
+  }
+
+  a{color:var(--cyan);}
+
+  img,canvas{image-rendering:pixelated; image-rendering:crisp-edges;}
+
+  ::selection{background:var(--cyan); color:#04121a;}
+
+  /* ---------- layout shell ---------- */
+  .wrap{max-width:1080px; margin:0 auto; padding:0 24px; position:relative; z-index:1;}
+
+  /* ---------- nav ---------- */
+  header.nav{
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    background:rgba(6,7,20,0.82);
+    backdrop-filter:blur(6px);
+    border-bottom:2px solid var(--border-line);
+  }
+  .navbar{
+    max-width:1080px; margin:0 auto; padding:10px 24px;
+    display:flex; align-items:center; justify-content:space-between;
+    gap:12px;
+  }
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand span{font-family:var(--font-head); font-size:12px; color:var(--cyan); letter-spacing:1px;}
+  .navlinks{display:flex; gap:4px; flex-wrap:wrap;}
+  .navlinks a{
+    font-family:var(--font-head);
+    font-size:9px;
+    color:var(--text-dim);
+    text-decoration:none;
+    padding:8px 10px;
+    border:1px solid transparent;
+  }
+  .navlinks a:hover{color:var(--cyan); border-color:var(--border-line); background:rgba(87,230,255,0.06);}
+
+  /* ---------- window panel component ---------- */
+  .panel{
+    position:relative;
+    background:linear-gradient(180deg, rgba(20,27,66,0.92), rgba(10,13,34,0.94));
+    border:2px solid var(--border-line);
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 12px 30px rgba(0,0,0,0.45);
+    margin:26px 0;
+    clip-path:polygon(0 12px,12px 0,calc(100% - 12px) 0,100% 12px,100% calc(100% - 12px),calc(100% - 12px) 100%,12px 100%,0 calc(100% - 12px));
+  }
+  .panel::before{ /* corner glow accents */
+    content:""; position:absolute; inset:0; pointer-events:none;
+    box-shadow: inset 0 0 40px rgba(87,230,255,0.05);
+  }
+  .panel-bar{
+    display:flex; align-items:center; gap:8px;
+    padding:9px 16px;
+    border-bottom:1px solid var(--border-line);
+    background:rgba(87,230,255,0.05);
+  }
+  .panel-bar .dot{width:7px; height:7px; background:var(--cyan); box-shadow:0 0 6px var(--cyan);}
+  .panel-bar span{
+    font-family:var(--font-head); font-size:10px; color:var(--cyan); letter-spacing:1px;
+  }
+  .panel-body{padding:24px;}
+  @media (max-width:640px){ .panel-body{padding:18px;} }
+
+  section{scroll-margin-top:90px; position:relative; z-index:1;}
+
+  .eyebrow{display:none;} /* intentionally unused - avoided generic label pattern */
+
+  /* ---------- hero / status window ---------- */
+  .hero{padding-top:120px;}
+  .status-grid{
+    display:grid; grid-template-columns:150px 1fr; gap:26px; align-items:start;
+  }
+  @media (max-width:600px){ .status-grid{grid-template-columns:1fr; justify-items:center; text-align:center;} }
+
+  .avatar-frame{
+    width:150px; height:150px;
+    border:2px solid var(--border-line);
+    background:radial-gradient(circle at 50% 35%, #1c2758, #0a0e24);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 0 1px rgba(0,0,0,0.5), 0 0 26px rgba(87,230,255,0.12);
+  }
+
+  .name-line{font-size:22px; color:#fff; margin:0 0 6px;}
+  .class-line{font-family:var(--font-body); font-size:22px; color:var(--gold); margin:0 0 14px;}
+  .level-tag{
+    display:inline-block; font-family:var(--font-head); font-size:10px;
+    color:#04121a; background:var(--cyan); padding:5px 9px; margin-bottom:16px;
+  }
+
+  .statbar-row{margin-bottom:10px;}
+  .statbar-row .labels{
+    display:flex; justify-content:space-between; font-size:16px; color:var(--text-dim); margin-bottom:3px;
+  }
+  .statbar{
+    height:14px; background:#0a0e24; border:1px solid var(--border-line); position:relative; overflow:hidden;
+  }
+  .statbar i{
+    display:block; height:100%;
+    background:repeating-linear-gradient(90deg, var(--fill,#57e6ff) 0 6px, rgba(255,255,255,0.15) 6px 8px);
+    width:0%;
+    transition:width 1.1s cubic-bezier(.2,.8,.2,1);
+  }
+
+  .cta-row{display:flex; gap:12px; margin-top:20px; flex-wrap:wrap;}
+  @media (max-width:600px){ .cta-row{justify-content:center;} }
+
+  .btn{
+    font-family:var(--font-head); font-size:10px; text-decoration:none;
+    color:#04121a; background:var(--cyan);
+    padding:12px 16px; display:inline-block;
+    border:2px solid #04121a;
+    box-shadow:4px 4px 0 rgba(0,0,0,0.8);
+    transition:transform .12s ease, box-shadow .12s ease;
+  }
+  .btn:hover{transform:translate(2px,2px); box-shadow:2px 2px 0 rgba(0,0,0,0.8);}
+  .btn.ghost{background:transparent; color:var(--cyan); border-color:var(--cyan);}
+
+  /* ---------- cat guide ---------- */
+  .cat-guide{
+    display:flex; align-items:flex-end; gap:14px; margin:34px 0 8px;
+  }
+  .cat-guide canvas{width:56px; height:56px; flex:none;}
+  .speech{
+    background:var(--bg-panel-2); border:2px solid var(--border-line);
+    padding:10px 14px; font-size:18px; color:var(--text-main); position:relative;
+    clip-path:polygon(0 8px,8px 0,100% 0,100% 100%,8px 100%,0 calc(100% - 8px));
+  }
+
+  /* ---------- about text ---------- */
+  .about p{font-size:20px; color:var(--text-main); max-width:70ch;}
+  .badge-row{display:flex; flex-wrap:wrap; gap:8px; margin-top:16px;}
+  .badge{
+    font-family:var(--font-head); font-size:9px; color:var(--purple);
+    border:1px solid var(--purple); padding:6px 8px;
+  }
+
+  /* ---------- quests ---------- */
+  .quest{
+    border:1px solid var(--border-line);
+    background:rgba(255,255,255,0.02);
+    padding:16px 18px; margin-bottom:14px;
+  }
+  .quest + .quest{margin-top:14px;}
+  .quest-top{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap;}
+  .quest-title{font-family:var(--font-head); font-size:13px; color:#fff;}
+  .quest-meta{font-size:16px; color:var(--text-dim);}
+  .status-chip{
+    font-family:var(--font-head); font-size:8px; padding:5px 8px; white-space:nowrap; height:fit-content;
+  }
+  .status-chip.complete{color:#04241a; background:var(--green);}
+  .status-chip.active{color:#2a1400; background:var(--gold); animation:pulse 1.6s infinite;}
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.6;} }
+
+  .quest ul{margin:12px 0 10px; padding-left:20px; font-size:18px; color:var(--text-main);}
+  .quest ul li{margin-bottom:4px;}
+  .reward-row{display:flex; flex-wrap:wrap; gap:6px; margin-top:8px;}
+  .reward{font-size:14px; font-family:var(--font-body); color:var(--cyan); border:1px dashed var(--cyan-dim); padding:3px 8px;}
+
+  /* ---------- inventory / projects ---------- */
+  .inv-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:16px;}
+  .item{
+    border:2px solid var(--rarity, var(--cyan));
+    background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(0,0,0,0.15));
+    padding:16px; display:flex; flex-direction:column; gap:8px;
+    box-shadow:0 0 16px color-mix(in srgb, var(--rarity, var(--cyan)) 35%, transparent);
+  }
+  .item .rarity-tag{
+    font-family:var(--font-head); font-size:8px; color:var(--rarity, var(--cyan));
+    letter-spacing:1px;
+  }
+  .item h3{font-size:15px; margin:2px 0 0; color:#fff;}
+  .item p{font-size:17px; color:var(--text-dim); margin:0; flex-grow:1;}
+  .item .item-icon{width:34px; height:34px;}
+  .item-foot{display:flex; justify-content:space-between; align-items:center; margin-top:6px;}
+  .item-link{font-family:var(--font-head); font-size:9px; color:var(--rarity, var(--cyan)); text-decoration:none;}
+  .item-link:hover{text-decoration:underline;}
+  .dev-tag{font-family:var(--font-head); font-size:9px; color:var(--text-dim);}
+
+  /* ---------- skill tree ---------- */
+  .tree-grid{display:grid; grid-template-columns:repeat(auto-fit, minmax(230px,1fr)); gap:18px;}
+  .branch{border-left:3px solid var(--cyan-dim); padding-left:16px;}
+  .branch h3{font-size:13px; color:var(--cyan); margin:0 0 10px;}
+  .chip-row{display:flex; flex-wrap:wrap; gap:7px;}
+  .chip{
+    font-size:16px; padding:5px 10px; background:rgba(87,230,255,0.06);
+    border:1px solid var(--border-line); color:var(--text-main);
+  }
+  .passives{margin-top:26px;}
+  .passives h3{font-size:13px; color:var(--gold); margin:0 0 10px;}
+
+  /* ---------- achievement ---------- */
+  .achievement{
+    display:flex; gap:18px; align-items:center; flex-wrap:wrap;
+    border:2px solid var(--gold);
+    background:linear-gradient(90deg, rgba(255,207,92,0.1), transparent);
+    padding:20px; box-shadow:0 0 24px rgba(255,207,92,0.15);
+  }
+  .trophy{width:46px; height:46px; flex:none;}
+  .achievement h3{font-size:14px; color:var(--gold); margin:0 0 6px;}
+  .achievement p{font-size:18px; color:var(--text-main); margin:0 0 4px;}
+  .achievement .meta{font-size:15px; color:var(--text-dim);}
+
+  /* ---------- contact ---------- */
+  .contact-grid{display:flex; flex-wrap:wrap; gap:26px; justify-content:space-between; align-items:center;}
+  .contact-lines{font-size:19px;}
+  .contact-lines div{margin-bottom:6px;}
+  .contact-lines a{color:var(--text-main); text-decoration:none; border-bottom:1px dotted var(--cyan-dim);}
+
+  footer{
+    text-align:center; padding:50px 20px 70px; color:var(--text-dim); font-size:15px;
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+  }
+  footer canvas{width:40px; height:40px;}
+
+  h2.section-title{
+    font-size:16px; color:#fff; margin:0 0 4px;
+    display:flex; align-items:center; gap:10px;
+  }
+  h2.section-title small{font-size:14px; color:var(--text-dim); font-family:var(--font-body);}
+</style>
+</head>
+<body>
+
+<canvas id="stars"></canvas>
+
+<header class="nav">
+  <div class="navbar">
+    <div class="brand">
+      <canvas id="catLogo" width="16" height="16" style="width:28px;height:28px;"></canvas>
+      <span>JP.ATIENZA</span>
+    </div>
+    <nav class="navlinks">
+      <a href="#status">Status</a>
+      <a href="#quests">Quests</a>
+      <a href="#inventory">Inventory</a>
+      <a href="#skills">Skills</a>
+      <a href="#achievement">Achievement</a>
+      <a href="#contact">Contact</a>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- ================= HERO / STATUS ================= -->
+  <section id="status" class="hero">
+    <div class="panel">
+      <div class="panel-bar"><span class="dot"></span><span>// STATUS_WINDOW.SYS</span></div>
+      <div class="panel-body status-grid">
+        <div class="avatar-frame">
+          <img src="PaulProfile.jpg" alt="John Paul Atienza" style="width:100%;height:100%;object-fit:cover;">
+        </div>
+        <div>
+          <h1 class="name-line">JOHN PAUL B. ATIENZA</h1>
+          <p class="class-line">Computer Engineer &middot; Full-Stack Adventurer</p>
+          <span class="level-tag">LV. 04 — BATANGAS STATE UNIVERSITY, 2022&ndash;2026</span>
+
+          <div class="statbar-row">
+            <div class="labels"><span>Web Development</span><span>82</span></div>
+            <div class="statbar"><i data-fill="82%" style="--fill:var(--cyan)"></i></div>
+          </div>
+          <div class="statbar-row">
+            <div class="labels"><span>Hardware &amp; IoT</span><span>70</span></div>
+            <div class="statbar"><i data-fill="78%" style="--fill:var(--green)"></i></div>
+          </div>
+          <div class="statbar-row">
+            <div class="labels"><span>Systems &amp; Data</span><span>75</span></div>
+            <div class="statbar"><i data-fill="77%" style="--fill:var(--purple)"></i></div>
+          </div>
+          <div class="statbar-row">
+            <div class="labels"><span>Troubleshooting</span><span>88</span></div>
+            <div class="statbar"><i data-fill="88%" style="--fill:var(--gold)"></i></div>
+          </div>
+
+          <div class="cta-row">
+            <a href="#quests" class="btn">Open Quest Log</a>
+            <a href="#inventory" class="btn ghost">Check Inventory</a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="cat-guide">
+      <canvas id="catGuide" width="14" height="14"></canvas>
+      <div class="speech">Meow! Scroll down, adventurer — my human's whole journey is mapped out below.</div>
+    </div>
+  </section>
+
+  <!-- ================= ABOUT ================= -->
+  <section id="about" class="about">
+    <div class="panel">
+      <div class="panel-bar"><span class="dot"></span><span>// CHARACTER_BIO.TXT</span></div>
+      <div class="panel-body">
+        <h2 class="section-title">Character Background</h2>
+        <p>
+          A Computer Engineering student from Batangas City, closing out a BS at Batangas State
+          University &ndash; The National Engineering University (2022&ndash;2026). Comfortable moving between
+          worlds &mdash; writing front-end interfaces one week, wiring an ESP32 the next, and tracing a
+          MOSFET converter's circuit the week after that. Spends free time repairing computers for
+          neighbors, building small dashboards, and dreaming up the occasional gamified VR project.
+        </p>
+        <div class="badge-row">
+          <span class="badge">Batangas City, PH</span>
+          <span class="badge">Web &amp; Embedded Systems</span>
+          <span class="badge">Published Co-Author</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= QUESTS ================= -->
+  <section id="quests">
+    <h2 class="section-title">Quest Log <small>— work experience</small></h2>
+
+    <div class="quest">
+      <div class="quest-top">
+        <div>
+          <div class="quest-title">Side Quest: The Freelance Technician's Path</div>
+          <div class="quest-meta">Freelance Computer Technician &middot; Feb 2026 &ndash; Present</div>
+        </div>
+        <span class="status-chip active">ACTIVE</span>
+      </div>
+      <ul>
+        <li>Diagnosed root causes of system failures and performance bottlenecks using systematic troubleshooting methods.</li>
+        <li>Repaired client devices &mdash; OS reinstalls, malware removal, and hardware fixes &mdash; back to full working order.</li>
+      </ul>
+      <div class="reward-row">
+        <span class="reward">+ Diagnostics</span>
+        <span class="reward">+ Hardware Repair</span>
+        <span class="reward">+ Client Trust</span>
+      </div>
+    </div>
+
+    <div class="quest">
+      <div class="quest-top">
+        <div>
+          <div class="quest-title">Main Quest: OJT — Web Dev Intern, Dean's Office</div>
+          <div class="quest-meta">Batangas State University &ndash; Alangilan &middot; Feb 2026 &ndash; Apr 2026</div>
+        </div>
+        <span class="status-chip complete">COMPLETE</span>
+      </div>
+      <ul>
+        <li>Handled document organization, data encoding, reporting, and records management for the office.</li>
+        <li>Designed and built the initial prototype for the College of Engineering website.</li>
+        <li>Developed a web-based Quarterly Performance Dashboard for tracking performance data.</li>
+        <li>Applied front-end, back-end, and database work across both builds.</li>
+      </ul>
+      <div class="reward-row">
+        <span class="reward">+ Full-Stack Dev</span>
+        <span class="reward">+ Database Mgmt</span>
+        <span class="reward">+ Reporting</span>
+      </div>
+    </div>
+
+    <div class="quest">
+      <div class="quest-top">
+        <div>
+          <div class="quest-title">Side Quest: Selling Clerk, Receiving &amp; Dispatching Unit</div>
+          <div class="quest-meta">SVI Lipa &middot; Jul 2026 &ndash; Aug 2026</div>
+        </div>
+        <span class="status-chip complete">COMPLETE</span>
+      </div>
+      <ul>
+        <li>Received, checked, organized, and dispatched merchandise and inventory items.</li>
+        <li>Maintained records and documentation tied to daily receiving and dispatching activity.</li>
+      </ul>
+      <div class="reward-row">
+        <span class="reward">+ Inventory Ops</span>
+        <span class="reward">+ Team Coordination</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= INVENTORY / PROJECTS ================= -->
+  <section id="inventory">
+    <h2 class="section-title">Inventory <small>— featured projects</small></h2>
+    <div class="inv-grid">
+
+      <div class="item" style="--rarity:var(--purple)">
+        <span class="rarity-tag">★ RARE ITEM</span>
+        <h3>College of Engineering Website Prototype</h3>
+        <p>A structured, responsive web interface built as the initial prototype for the college's public site.</p>
+        <div class="item-foot">
+          <span class="dev-tag">Web Build</span>
+          <a class="item-link" href="https://coe-website-sand.vercel.app/" target="_blank" rel="noopener">Live Demo &rarr;</a>
+        </div>
+      </div>
+
+      <div class="item" style="--rarity:var(--cyan)">
+        <span class="rarity-tag">★ RARE ITEM</span>
+        <h3>Quarterly Performance Dashboard</h3>
+        <p>A web dashboard for visualizing and monitoring BatStateU's quarterly performance data.</p>
+        <div class="item-foot">
+          <span class="dev-tag">Data Viz</span>
+          <a class="item-link" href="https://quarterly-performance-dashboad.onrender.com/#" target="_blank" rel="noopener">Live Demo &rarr;</a>
+        </div>
+      </div>
+
+      <div class="item" style="--rarity:var(--gold)">
+        <span class="rarity-tag">★★★ LEGENDARY ITEM</span>
+        <h3>Interactive Chemistry Visualization Suite</h3>
+        <p>A gamified, open-world VR platform for exploring chemical bonding &mdash; letting users visualize and interact with structures through immersive gameplay.</p>
+        <div class="item-foot">
+          <span class="dev-tag">Gamified VR</span>
+          <span class="item-link" style="opacity:.7;">In Development</span>
+        </div>
+      </div>
+
+    </div>
+  </section>
+
+  <!-- ================= SKILL TREE ================= -->
+  <section id="skills">
+    <div class="panel">
+      <div class="panel-bar"><span class="dot"></span><span>// SKILL_TREE.SYS</span></div>
+      <div class="panel-body">
+        <div class="tree-grid">
+          <div class="branch">
+            <h3>Programming &amp; Web</h3>
+            <div class="chip-row">
+              <span class="chip">HTML</span><span class="chip">CSS</span><span class="chip">JavaScript</span>
+              <span class="chip">Python</span><span class="chip">C#</span>
+            </div>
+          </div>
+          <div class="branch">
+            <h3>Systems &amp; Data</h3>
+            <div class="chip-row">
+              <span class="chip">NoSQL</span><span class="chip">MySQL</span><span class="chip">SQLite</span>
+              <span class="chip">Process Automation</span><span class="chip">Data Visualization</span>
+            </div>
+          </div>
+          <div class="branch">
+            <h3>Hardware &amp; IoT</h3>
+            <div class="chip-row">
+              <span class="chip">ESP32</span><span class="chip">Arduino</span><span class="chip">Sensor Integration</span>
+              <span class="chip">Circuit Troubleshooting</span><span class="chip">PC Assembly</span>
+            </div>
+          </div>
+          <div class="branch">
+            <h3>Tools</h3>
+            <div class="chip-row">
+              <span class="chip">Git</span><span class="chip">GitHub</span><span class="chip">VS Code</span>
+              <span class="chip">VirtualBox</span><span class="chip">Photoshop</span><span class="chip">Clip Studio Paint</span><span class="chip">Unity</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="passives">
+          <h3>Passive Traits</h3>
+          <div class="chip-row">
+            <span class="chip">Analytical Problem Solving</span>
+            <span class="chip">Technical Communication</span>
+            <span class="chip">Systems Thinking</span>
+            <span class="chip">Fast Learning &amp; Adaptability</span>
+            <span class="chip">Documentation &amp; Reporting</span>
+            <span class="chip">Teamwork</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ACHIEVEMENT ================= -->
+  <section id="achievement">
+    <h2 class="section-title">Achievement Unlocked</h2>
+    <div class="achievement">
+      <canvas id="trophy" width="12" height="12" class="trophy"></canvas>
+      <div>
+        <h3>PUBLISHED RESEARCHER</h3>
+        <p>&ldquo;Enhancing MOSFET-Based DC Converters with Adaptive Capability&rdquo;</p>
+        <div class="meta">
+          J. B. Morillo, J. P. B. Atienza, et al. &middot; 2025 International Conference on Computer and Information Technology (ICCIT)
+          &middot; Published April 2025 &middot;
+          <a href="https://doi.org/10.1109/iccit63348.2025.10989441" target="_blank" rel="noopener">DOI: 10.1109/iccit63348.2025.10989441</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CONTACT ================= -->
+  <section id="contact">
+    <div class="panel">
+      <div class="panel-bar"><span class="dot"></span><span>// GUILD_INVITE.SYS</span></div>
+      <div class="panel-body contact-grid">
+        <div class="contact-lines">
+          <div>Email: <a href="mailto:atienzajohnpaul02@gmail.com">atienzajohnpaul02@gmail.com</a></div>
+          <div>Contact No: <a href="tel:+639155167152">+63 915 516 7152</a></div>
+          <div>Based in: Batangas City, Philippines</div>
+        </div>
+        <a class="btn" href="mailto:atienzajohnpaul02@gmail.com">Send Guild Invite</a>
+      </div>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  <canvas id="catFoot" width="14" height="14"></canvas>
+  <div>Built pixel by pixel in Batangas City.</div>
+</footer>
+
+<script>
+/* ---------------- starfield ---------------- */
+(function(){
+  const c = document.getElementById('stars');
+  const ctx = c.getContext('2d');
+  let stars = [];
+  function resize(){
+    c.width = window.innerWidth;
+    c.height = document.body.scrollHeight;
+    stars = [];
+    const count = Math.floor((c.width * Math.min(c.height, 3000)) / 9000);
+    for(let i=0;i<count;i++){
+      stars.push({
+        x: Math.random()*c.width,
+        y: Math.random()*c.height,
+        s: Math.random()<0.15 ? 2 : 1,
+        p: Math.random()*Math.PI*2,
+        speed: 0.02 + Math.random()*0.03
+      });
+    }
+  }
+  function draw(t){
+    ctx.clearRect(0,0,c.width,c.height);
+    for(const st of stars){
+      const a = 0.35 + 0.65*Math.abs(Math.sin(st.p + t*st.speed));
+      ctx.fillStyle = 'rgba(150,200,255,'+a.toFixed(2)+')';
+      ctx.fillRect(st.x, st.y, st.s, st.s);
+    }
+    requestAnimationFrame(draw);
+  }
+  window.addEventListener('resize', resize);
+  resize();
+  requestAnimationFrame(draw);
+})();
+
+/* ---------------- pixel sprite renderer ---------------- */
+function drawSprite(canvasId, grid, palette){
+  const el = document.getElementById(canvasId);
+  if(!el) return;
+  const ctx = el.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0,0,el.width, el.height);
+  for(let y=0;y<grid.length;y++){
+    for(let x=0;x<grid[y].length;x++){
+      const k = grid[y][x];
+      if(k === '.') continue;
+      ctx.fillStyle = palette[k];
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+}
+
+/* 14x14 chibi cat face, two blink frames */
+const CAT_PALETTE = { K:'#1a1208', B:'#e08a3c', D:'#b8651f', W:'#f5f1e6', E:'#6dffa4', P:'#ff9eb0' };
+const CAT_OPEN = [
+"..K......K...",
+".KBK....KBK..",
+".KBBK..KBBK..",
+".KBBBKKBBBBK.",
+"KBBBBBBBBBBBK",
+"KBBEBBBBBEBBK",
+"KBBBBBBBBBBBK",
+"KBBDBBBBBDBBK",
+"KBBWWWWWWBBBK",
+"KBBWPPPPWBBBK",
+".KBWWWWWWBBK.",
+".KBBBBBBBBK..",
+"..KKKKKKKKK..",
+".............",
+];
+const CAT_BLINK = CAT_OPEN.map(row => row.replaceAll('E','B'));
+
+['catHero','catLogo','catGuide','catFoot'].forEach(id => drawSprite(id, CAT_OPEN, CAT_PALETTE));
+let blinked = false;
+setInterval(() => {
+  blinked = !blinked;
+  const frame = blinked ? CAT_BLINK : CAT_OPEN;
+  ['catHero','catGuide'].forEach(id => drawSprite(id, frame, CAT_PALETTE));
+}, 2600);
+
+/* 12x12 trophy */
+const TROPHY_PALETTE = { K:'#5a3d00', G:'#ffcf5c', L:'#fff0b8', S:'#8a93c2' };
+const TROPHY = [
+"..KGGGGGGK..",
+".KGGGGGGGGK.",
+"KGLGGGGGGLGK",
+"KGLGGGGGGLGK",
+"KGLGGGGGGLGK",
+".KGGGGGGGGK.",
+"..KGGGGGGK..",
+"...KGGGGK...",
+"....KGGK....",
+"...KSSSSK...",
+"..KSSSSSSK..",
+".KKKKKKKKKK.",
+];
+drawSprite('trophy', TROPHY, TROPHY_PALETTE);
+
+/* ---------------- stat bar fill on scroll ---------------- */
+const bars = document.querySelectorAll('.statbar i');
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if(e.isIntersecting){
+      e.target.style.width = e.target.dataset.fill;
+      io.unobserve(e.target);
+    }
+  });
+}, {threshold:0.4});
+bars.forEach(b => io.observe(b));
+</script>
+</body>
+</html>
